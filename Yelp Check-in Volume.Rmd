@@ -1,0 +1,436 @@
+---
+title: "Yelp Team Assignment Group-6"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+library(sqldf)
+library(MatchIt)
+library(dplyr)
+library(ggplot2)
+library(corrgram)
+library(car)
+library(MASS)
+options(sqldf.driver = "SQLite")
+```
+#### 1)Are users more likely to follow elite users, as compared to non-elite users (use 2017 elites and apply Poisson Regression)? 
+
+For checking the effect whether elite users can attract more users to follow, we need to suppress other factors which might impact that users follow other users or not, like the reviews a user posted, tips offered, compliments got from others and so on.
+Therefore, we need to use matched data of users' features based on "is elite" or "non elite", and then, do t-test/regression to test the "is_elite" effect on the number of friends.
+
+----------following is fetching data from table "user", "elite_year", and "tip"--------------
+```{r}
+# fetch data
+## user
+res = dbSendQuery(mydb, "select * from user")
+user = fetch(res, n = -1)
+dbClearResult(res)
+
+## elite info in 2016.
+res = dbSendQuery(mydb, "select distinct user_id from elite_years where year = '2016'")
+elite_2016 = fetch(res, n = -1)
+dbClearResult(res)
+
+## the times that a user was awarded as a elite in history.
+res = dbSendQuery(mydb, "select user_id, count(user_id) as times from elite_years group by user_id")
+elite_times = fetch(res, n = -1)
+dbClearResult(res)
+
+## tip info 
+res = dbSendQuery(mydb, "select user_id, business_id, likes from tip")
+tip = fetch(res, n = -1)
+dbClearResult(res)
+```
+
+
+----------following is merging related info of yelp user into table "num_friend"-----------
+```{r}
+# is elite in 2016?
+num_friend$elite_2016 <- ifelse(num_friend$user_id %in% elite_2016$user_id, 1, 0)
+
+# the times of awarded as elite in history
+num_friend <- merge(num_friend, elite_times, by = "user_id", all.x = TRUE)
+num_friend$times[is.na(num_friend$times)] <- 0
+
+# the total number of tip made by every user in num_friend
+num_tip <- sqldf("select user_id, sum(likes) as tip_cnt from tip group by user_id")
+num_friend <- merge(num_friend, num_tip, by = "user_id", all.x = TRUE)
+num_friend$tip_cnt[is.na(num_friend$tip_cnt)] <- 0
+
+# select related user features from table "user"
+user_feature <- user[, -2]
+
+# calculate the tenure of yelp user (We make an assumption the date of dataset is as of 12/31/2017 for calculating tenure.)
+user_feature$tenure <- difftime(as.Date.character("2017-12-31 00:00:00"),
+                                as.Date.character(user_feature$yelping_since), units="weeks")
+user_feature$tenure <- as.numeric(user_feature$tenure)
+user_feature <- user_feature[, -3]
+colnames(user_feature)[1] <- c("user_id")
+# merge into num_friend
+num_friend <- merge(num_friend, user_feature, by = "user_id", all.x = TRUE)
+
+
+# now, table "num_friend" includes all related info of yelp users activities statistics on Yelp platform. (The quantitative values in "Review" table are already presented in "User" table)
+head(num_friend)
+
+# According to Yelp platform, the review can be thumbed up as "userful", "funny" and "cool" which are all about the quality of the review, so combined them as a whole variable "review_quality" (See Appendix-1)
+attach(num_friend)
+num_friend$review_quality <- useful + funny + cool
+
+# For encourage users to publish reviews and engage more Yelp platform, Yelp encourage people to compliment the reviewers from many perspectives, like "Good writer", "you're funny", "Great photo" and so on. Therefore, we are going to combine all compliments as one single variable "compliment" to better reflect this feature as a whole. (See Appendix-2)
+
+num_friend$compliment <- compliment_cool + compliment_cute + compliment_funny + compliment_hot + compliment_list + compliment_more + compliment_note + compliment_photos + compliment_plain + compliment_profile + compliment_writer
+
+# Remove varibles of "userful", "funny", "cool" and every detailed compliment
+num_friend <- num_friend[-c(8,9,10,13,14,15,16,17,18,19,20,21,22,23)]
+```
+
+
+```{r}
+head(num_friend)
+```
+# Statistics of variables of 'num_friend'
+user_vars <- c("cnt_friends", "is_elite", "elite_2016", "times", "tip_cnt", "review_count", 
+               "fans", "average_stars", "tenure", "review_quality", "compliment")
+```{r}
+summary(num_friend[user_vars])
+```
+# Correlation between the number of friends and other variables
+
+# From below corrgram, we can know the number of friends has positive relationship with all the features of users, including their elite history and their activities engaged on the Yelp platform. It has strong relationship with the number of fans, the number of reviews, the times of elite awarded, review qualities, compliments and whether awarded recently (elite in 2016/2017). It has positive relationship with the number of tips, the tenure on the Yelp platform and the average rating they gave, but the relationship is not strong.
+
+# We have also found the strong relationship between the quality of reviews and the number of compliments, the times awarded as Elite and the number of reviews posted and their Elite status of recent years. 
+
+
+```{r}
+corrgram(num_friend[-1], order = TRUE, lower.panel = panel.shade,
+         upper.panel = panel.pie, text.panel = panel.txt,
+         main = "Corrgram of num_friends intercorrelations")
+```
+
+# t-test result shows the numbers of followees in two groups (elite group and non-elite group) have significantly different (at 95% confidence interval)
+```{r}
+t.test(num_friend$cnt_friends ~ num_friend$is_elite)
+```
+
+# Below mean value shows that the engagement activities on Yelp platform and history status of as a Yelp user also indicate significant defference in two groups (elite group and non-elite group)
+```{r}
+mean_before_match <- num_friend %>%
+  group_by(is_elite) %>%
+  select(one_of(user_vars[3:11])) %>%
+  summarise_all(funs(mean(., na.rm = T)))
+
+mean_before_match <- as.matrix(mean_before_match)
+```
+# Graphs: mean value of each variable of two groups
+```{r}
+par(mfrow=c(2,3))
+for(i in 2:9){
+  barplot(mean_before_match[ , i], main = colnames(mean_before_match)[i], 
+          names = c("non-elite", "elite"), col = c("green", "gray"), beside = TRUE)
+}
+```
+
+# Therefore, for testing the treatment effect of "is elite" on whether have more likely to get more followees (friends), we need to suppress the confounding effect of other variables on the two groups (elite group and non-elite group) and on the the number of friends.
+# We will calculate propensity score to get the matched observations in both groups
+```{r}
+m_ps <- glm(is_elite ~ elite_2016 + times + tip_cnt + review_count + fans +
+              average_stars + tenure + review_quality + compliment, family = binomial(),
+            data = num_friend)
+```
+
+```{r}
+summary(m_ps)
+```
+# Propensity score for each observation
+```{r}
+prs_df <- data.frame(pr_score = predict(m_ps, type = "response"),
+                     is_elite=m_ps$model$is_elite)
+```
+
+# Graph of propensity score of the two groups (elite group and non-elite group)
+# The graph indicates the users' features are more uniform in each group.
+```{r}
+
+labs <- paste("is elite?:", c("Yes", "No"))
+prs_df %>%
+  mutate(is_elite = ifelse(is_elite == 1, labs[1], labs[2])) %>%
+  ggplot(aes(x = pr_score)) +
+  geom_histogram(color = "white") +
+  facet_wrap(~is_elite) +
+  xlab("Probability of being an elite") +
+  theme_bw()
+```
+
+# No NA value. Then we will match the data between elite group and non-elite group.
+```{r}
+mod_match <- matchit(is_elite ~ elite_2016 + times + tip_cnt + review_count + fans
+            + average_stars + tenure + review_quality + compliment, method = "nearest",
+            data = num_friend)
+
+summary(mod_match)
+```
+
+
+# We have 34773 obs matched in each group.
+```{r}
+dta_m <- match.data(mod_match)
+dim(dta_m)
+```
+# Check the mean of variables in two groups based on matched data.
+```{r}
+mean_after_match <- dta_m %>%
+  group_by(is_elite) %>%
+  select(one_of(user_vars[3:11])) %>%
+  summarise_all(funs(mean(., na.rm = T)))
+
+mean_after_match <- as.matrix(mean_after_match)
+```
+# Following is the mean value of each variable of each group
+```{r}
+par(mfrow=c(2,3))
+for(i in 2:9){
+  barplot(mean_after_match[ , i], main = colnames(mean_after_match)[i], names = c("non-elite", "elite"), col = c("yellow", "gray"), beside = TRUE)
+}
+```
+
+# Do t-test based on matched data which supressed the confounding effect of covariates.
+# Tiny p-value told us "is elite" do have treatment effect on the number of friends.
+```{r}
+t.test(dta_m$cnt_friends ~ dta_m$is_elite)
+```
+
+
+# Do poisson regression based on matched data to see how strong is the effect of is_elite.
+```{r}
+scatterplot(dta_m$cnt_friends, dta_m$is_elite)
+
+
+fit.followee <- glm(cnt_friends ~ is_elite + elite_2016 + times + tip_cnt + review_count + fans + average_stars + tenure + review_quality + compliment, data = dta_m, family = poisson())
+summary(fit.followee)
+```
+
+# Interprate coefficients:
+
+```{r}
+c1 <-coef(fit.followee)
+c1 <- as.data.frame(c1)
+colnames(c1) <- c("coef_value")
+attach(c1)
+c1$coef_value <- round(coef_value, 4)
+c1$exp_value <- round(exp(coef_value), 4)
+c1$percentage_change <- (c1$exp_value-1)*100
+c1
+```
+Conclusion:
+Above p-value is tiny which tell us is_elite has treatment effect on the number of friends; from the table "c1" (Intercept is not meaningful, because tenure couldn't be zero), we can know if the value of is_elite increases by one, the number of friend would increase by 15.7% on average.
+
+We can conclude that users are more likely to follow elite users, as compared to non-elite users, based on above analysis of using 'elite' data of 2017.
+
+
+#### 2)predict customer volumes (check-in) for the businesses with selected variables.
+
+----following is fetching data from table "business", "checkin", "category" "attribute"------
+```{r}
+res = dbSendQuery(mydb, "select * from business")
+business = fetch(res, n = -1)
+dbClearResult(res)
+
+res = dbSendQuery(mydb, "select * from checkin")
+checkin = fetch(res, n = -1)
+dbClearResult(res)
+
+res = dbSendQuery(mydb, "select * from category")
+category = fetch(res, n = -1)
+dbClearResult(res)
+
+# We found that for each business, the table "hours" contains the open hours of each open day. Therefore, we calculate how many days the business opens for.
+
+res = dbSendQuery(mydb, "select business_id, count(*) from hours group by business_id")
+hours = fetch(res, n = -1)
+dbClearResult(res)
+
+# sum the number of photo for each business of the table "photo".
+res = dbSendQuery(mydb, "select business_id, count(*) from photo group by business_id")
+photo = fetch(res, n = -1)
+dbClearResult(res)
+
+res = dbSendQuery(mydb, "select * from attribute")
+biz_attribute = fetch(res, n = -1)
+dbClearResult(res)
+```
+---following is merging related info of yelp business into table "business" and clean data---
+```{r}
+# The number of Checkin of every business unit
+
+checkin_num <- sqldf("select business_id, sum(count) as checkin_num from checkin group by business_id")
+
+# Category of Busniesses: according to Yelp's factsheet(https://www.yelp.com/factsheet), "Restaurants" is the second biggest category and it's also closely related with our daily life, so we are going to seperate the "category" into "restaurant" and "non-restaurant"
+
+category_rstrnt <- sqldf("select distinct business_id from category where category like '%Restaurant%' group by business_id")
+
+# Attribute: this table describes various features the business support or not (like value = 1 or = 0, true or false). Higher the sum of value means the business support more attributes for customers. 
+# We are going to sum all values up by every business unit(id). 
+# First of all, we are cleaning the value of characters - Ture/False. If it contains "ture", we set as "1", othervise "0".
+
+for(i in 1:1310575){
+if(grepl("true", biz_attribute$value[i])){
+  attribuite$value = 1
+ }
+}
+
+biz_attribute <- sqldf("select business_id, sum(value) as biz_value from biz_attribute group by business_id")
+
+# Tips of the business (see Appendix-3)
+biz_tip <- sqldf("select business_id, sum(likes) as biz_tip from tip group by business_id")
+
+
+
+# Following is merging above related data into 'business' table
+
+colnames(business)[1] <- "business_id"
+business <- merge(business, checkin_num, by = "business_id", all.x = TRUE)
+business$category <- ifelse(business$business_id %in% category_rstrnt$business_id, 1, 0)
+business <- merge(business, biz_attribute, by = "business_id", all.x = TRUE)
+business <- merge(business, biz_tip, by = "business_id", all.x = TRUE)
+
+# Merge the number of days the businesses open for, and, merge the number of photos the businesses have on the Yelp platform
+
+colnames(hours)[2] <- c("open_days")
+colnames(photo)[2] <- c("photos")
+business <- merge(business, hours, by = "business_id", all.x = TRUE)
+business <- merge(business, photo, by = "business_id", all.x = TRUE)
+
+# Now, business table with all related variables, but check_num has NA value. Checking several business ids with NA of check_num on Yelp platform, these business ids(stores) do not have checkins. Therefore, assign NA of check_num as '0'
+business$checkin_num[is.na(business$checkin_num)] <- 0
+
+# If "neiborghhood" has value, we assign as "1"; if not, assign as "0" (According to check the data, our understanding about neiborghhood is the similar stores (competitors) near the business store.)
+business$neighborhood <- ifelse(business$neighborhood == "", 0, 1)
+
+# According to longitude and latitude, the business ids distributes around the world (See Apendix-4), so we will distingush which ones are located in U.S. and assign country value as "1", otherwise "0" 
+us_state <- readxl::read_xlsx(file.choose()) # us_state contains abbreviation of all U.S. states
+business$country <- ifelse(business$state %in% us_state$Abbreviation, 1, 0)
+
+# Note: we keep "is_open" in the table, because we found some business still gets reviews even though it has been closed which might due to their good reputation when it was open, and if users still review the closed ones, it might impact the users' activities engaged on other business stores.
+```
+
+
+```{r}
+# Now, we have all related info in table "business", which are fetched from database.
+head(business)
+```
+
+# Check relationship among variables
+```{r}
+checkin_vars <- c("neighborhood", "stars", "review_count", "is_open", "category", "biz_value", "biz_tip", "country",  "checkin_num", "open_days", "photos")
+```              
+# General overview of distributions of variables
+```{r}
+summary(business[checkin_vars])
+boxplot(business[checkin_vars[c(1, 4, 5, 8)]], ylim = c(0, 2))
+boxplot(business[checkin_vars[c(2, 10)]], ylim = c(0, 10))
+boxplot(business[checkin_vars[c(3, 6, 7, 9, 11)]], ylim = c(0, 100))
+```
+
+# Correlationship: below graph show the number of checkin has strong positive relationship with the number of reviews, tips and photos. The number of tips, the number of reviews and the number of photos also have strong positive relationship among them. The attributes's value (biz_value) has strong positive relationship with the category "restaurant", restaurant might have more attributes which convenient for customers，like "good for kids", "Wi-fi", "TV", "Vegan", "Take out" and so on.
+
+Generally, all business operation features on Yelp have positive relationship with each other, like the days of open, the number of business attributes supported, the number of reviews, the number of photos, the number of tips, and the number of checkin.
+
+```{r}
+corrgram(business[checkin_vars], order = TRUE, lower.panel = panel.shade,
+         upper.panel = panel.pie, text.panel = panel.txt,
+         main = "Corrgram of checkin volume intercorrelations")
+```
+
+# Next, we will use "neighborhood", "stars", "review_count", "category", "biz_value", "biz_tip", "country", "is_open", "open_days", "photos" to generate the initial model of predicting checkin volume.
+
+# default na.action = "na.omit"
+
+# the result of stepAIC shows above variables all are significant with the number of checkin.
+
+```{r}
+
+fit.checkin <- glm(checkin_num ~ neighborhood + stars + review_count + category + biz_value + 
+                     biz_tip + country + is_open + open_days + photos, 
+                     data = business, family = poisson())
+
+summary(fit.checkin)
+
+stepAIC(fit.checkin, direction = "forward")
+```
+
+# Check whether the model is overdisperson
+# no outliers, but there is overdisperson. So, we use quasi-poisson to generate regression again
+# Then, we got the same result as fit.checkin
+# Because we don't have more deep insights about the original data and added all related info from the tables of the database into table "business", we will go ahead with the model "fit.checkin" to predict the number of checkin.
+```{r}
+outlierTest(fit.checkin) 
+deviance(fit.checkin)/df.residual(fit.checkin)
+fit.checkin.od <- glm(checkin_num ~ neighborhood + stars + review_count + category + biz_value +
+                        biz_tip + country + is_open + open_days + photos,
+                     data = business, family = quasipoisson())
+summary(fit.checkin.od)
+deviance(fit.checkin.od)/df.residual(fit.checkin.od)
+```
+
+# Interprate coefficients:
+```{r}
+c2 <-coef(fit.checkin)
+c2 <- as.data.frame(c2)
+colnames(c2) <- c("coef_value")
+attach(c2)
+c2$coef_value <- round(coef_value, 4)
+c2$exp_value <- round(exp(coef_value), 4)
+c2$pct_change <- (c2$exp_value-1)*100
+
+c2
+
+# predict: use mean value for non-binary variables.
+
+predict(fit.checkin, data.frame(neighborhood=0, stars=3.632, 
+                                review_count=30.14, category  = 0, 
+                                biz_value =8.62,
+                                biz_tip = 0.16, country = 1,
+                                is_open = 1, open_days= 6.38, 
+                                photos = 7.11, type="response"))
+# Checkin number is 6.
+
+# Checkin number changed from 5 to 6.
+# predict: stars from 1 to 5
+predict(fit.checkin, data.frame(neighborhood=0, stars=c(1, 2, 3, 4, 5), 
+                                review_count=30.14, category  = 0, 
+                                biz_value =8.62,
+                                biz_tip = 0.16, country = 1,
+                                is_open = 1, open_days= 6.38, 
+                                photos = 7.11, type="response"))
+
+```
+Conclusion:
+(Intercept is not meaningful, because all other variables couldn't be zero at the same time unless the business is not in operation yet, which is not practical for predicting checkin)
+
+1) if the business has neighborhood, the checkin volume of the business would increase by 4.91% on average. It might be because customers have more options and would like to check in both.
+
+2) if the star of the business increases by one point, the checkin volume of the business would increase by 27.72% on average.
+
+3) if the number of reveiws increases by one point, the checkin volume of the business would increase by 0.09% on average.
+
+4) if the business category is restaurant not others, the checkin volume of the business would decrease by 49.78% on average.
+
+5) if the attribuites' value increases by one point, the checkin volume of the business would increase by 4.48% on average.
+
+6) if the number of tip increases by one point, the checkin volume of the business would increase by 8.95% on average.
+
+7) if the business location is in U.S., the checkin volume of the business would increase by 266.79% on average.
+
+8) if the business is open, the checkin volume of the business would increase by 49.35% on average.
+
+9) if the number of business open days increases by one point, the checkin volume of the business would increase by 47.83% on average.
+
+10) if the number of business photos increases by one point, the checkin volume of the business would decrease by 0.55% on average. It might be because (凯解释)
+
+
+
+
+Managerial insights: （凯添加）
