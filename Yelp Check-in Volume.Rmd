@@ -1,5 +1,5 @@
 ---
-title: "Yelp Team Assignment Group-6"
+title: "Yelp Check-in Volume Analytics"
 output:
   html_document: default
   word_document: default
@@ -15,7 +15,7 @@ library(car)
 library(MASS)
 options(sqldf.driver = "SQLite")
 ```
-#### 1)Are users more likely to follow elite users, as compared to non-elite users (use 2017 elites and apply Poisson Regression)? 
+#### 1)Are users more likely to follow elite users, as compared to non-elite users? 
 
 For checking the effect whether elite users can attract more users to follow, we need to suppress other factors which might impact that users follow other users or not, like the reviews a user posted, tips offered, compliments got from others and so on.
 Therefore, we need to use matched data of users' features based on "is elite" or "non elite", and then, do t-test/regression to test the "is_elite" effect on the number of friends.
@@ -407,30 +407,3 @@ predict(fit.checkin, data.frame(neighborhood=0, stars=c(1, 2, 3, 4, 5),
                                 photos = 7.11, type="response"))
 
 ```
-Conclusion:
-(Intercept is not meaningful, because all other variables couldn't be zero at the same time unless the business is not in operation yet, which is not practical for predicting checkin)
-
-1) if the business has neighborhood, the checkin volume of the business would increase by 4.91% on average. It might be because customers have more options and would like to check in both.
-
-2) if the star of the business increases by one point, the checkin volume of the business would increase by 27.72% on average.
-
-3) if the number of reveiws increases by one point, the checkin volume of the business would increase by 0.09% on average.
-
-4) if the business category is restaurant not others, the checkin volume of the business would decrease by 49.78% on average.
-
-5) if the attribuites' value increases by one point, the checkin volume of the business would increase by 4.48% on average.
-
-6) if the number of tip increases by one point, the checkin volume of the business would increase by 8.95% on average.
-
-7) if the business location is in U.S., the checkin volume of the business would increase by 266.79% on average.
-
-8) if the business is open, the checkin volume of the business would increase by 49.35% on average.
-
-9) if the number of business open days increases by one point, the checkin volume of the business would increase by 47.83% on average.
-
-10) if the number of business photos increases by one point, the checkin volume of the business would decrease by 0.55% on average. It might be because (凯解释)
-
-
-
-
-Managerial insights: （凯添加）
