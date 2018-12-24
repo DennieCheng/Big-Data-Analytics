@@ -1,0 +1,23 @@
+1. Yelp users are more likely to follow Elite users.
+  Tiny p-value tells us is_elite has treatment effect on the number of friends; from the table "c1" (Intercept is not meaningful, because tenure couldn't be zero), we can know elite user has 15.7% more friends than non-elite user has on average.
+We can conclude that users are more likely to follow elite users, as compared to non-elite users, based on above analysis of using 'elite' data of 2017.
+
+2. The factors impacting Check-in volume
+1) if the business has neighborhood, the check-in volume of the business would increase by 4.91% on average. It might be because customers have more options and would like to check in both.
+2) if the star of the business increases by one point, the check-in volume of the business would increase by 27.72% on average.
+3) if the number of reviews increases by one point, the check-in volume of the business would increase by 0.09% on average.
+4) if the business category is restaurant not others, the check-in volume of the business would decrease by 49.78% on average.
+5) if the attributes’ value increases by one point, the check-in volume of the business would increase by 4.48% on average.
+6) if the number of tip increases by one point, the check-in volume of the business would increase by 8.95% on average.
+7) if the business location is in U.S., the check-in volume of the business would increase by 266.79% on average.
+8) if the business is open, the check-in volume of the business would increase by 49.35% on average.
+9) if the number of business open days in a week increases by one point, the check-in volume of the business would increase by 47.83% on average.
+10) if the number of business photos increases by one point, the check-in volume of the business would decrease by 0.55% on average. It might be because the photos already provide enough information (especially negative comments with photos) and customers have no future interesting to check in, or because the business is already very popular with more and more photos and doesn’t offer coupons to attract check-in.
+
+3. Managerial insights
+• For the business owners on Yelp platform
+From the findings above, we are able to conclude that the competitors can also be revenue driver because both businesses are sharing more customers. The star rating for a business is really significant, meaning that businesses should focus on services and goods. The business should also encourage customers to write reviews because this will increase the number of customers. If the business has attributes that satisfy customers' needs, customers will be more likely to at least have a try. The tips will provide customers with more profound understanding of the business and will encourage other customers to have a try.
+It is suggested that the business should operate near the existing competitors, encourage customers to write reviews and provide tips, provide better services and try to increase the number of operating days, and the photos on the advertisements should be as real as possible and deal with the photos about negative comments timely.
+Another suggestion is that businesses should reward customers who checked in much, posted reviews much, and who have many friends.
+• For Yelp
+As we stated by correlation graphs in the answer of Q1, Yelp users’ activities engaged on the platform (websites/app) are impacting other users. Yelp platform could work with business together to keep users engaged a lot on the platform (especially Elite users) and make activities more salient to leverage customers’ social network influence to help increase business revenue.
