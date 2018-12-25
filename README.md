@@ -18,7 +18,7 @@ corrgram;
 car;
 MASS
 
-# Other tools assited analyzing
+# Other tools assisted analyzing
 Tableau
 
 # Prediction Model
