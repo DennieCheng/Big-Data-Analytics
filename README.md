@@ -18,5 +18,8 @@ corrgram;
 car;
 MASS
 
+# Other tools assited analyzing
+Tableau
+
 # Prediction Model
 Poisson / Quasi-Possion Regression
