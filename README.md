@@ -4,8 +4,19 @@ The goal of this analytics is to find out the key factors impacting the check-in
 
 This analytics is based on the big raw data(2.5G) of Yelp business which is deployed on AWS.
 
-The raw data contains 11 tables of Yelp users' info and Yelp business owners' info.
+# Raw data
+11 tables of Yelp users' info and Yelp business owners' info.
 Table names:
 "attribute"   "business"    "category"    "checkin"     "elite_years" "friend"      "hours"       "photo"     "review"      "tip"         "user"   
 
+# Package
+sqldf;
+MatchIt;
+dplyr;
+ggplot2;
+corrgram;
+car;
+MASS
 
+# Prediction Model
+Poisson / Quasi-Possion Regression
