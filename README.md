@@ -22,4 +22,4 @@ MASS
 Tableau
 
 # Prediction Model
-Poisson / Quasi-Possion Regression
+Poisson / Quasi-Poisson Regression
