@@ -1,6 +1,6 @@
 1. Yelp users are more likely to follow Elite users.
-  Tiny p-value tells us is_elite has treatment effect on the number of friends; from the table "c1" (Intercept is not meaningful, because tenure couldn't be zero), we can know elite user has 15.7% more friends than non-elite user has on average.
-We can conclude that users are more likely to follow elite users, as compared to non-elite users, based on above analysis of using 'elite' data of 2017.
+   Tiny p-value tells us is_elite has treatment effect on the number of friends; from the table "c1" (Intercept is not meaningful, because tenure couldn't be zero), we can know elite user has 15.7% more friends than non-elite user has on average.
+   We can conclude that users are more likely to follow elite users, as compared to non-elite users.
 
 2. The factors impacting Check-in volume
 1) if the business has neighborhood, the check-in volume of the business would increase by 4.91% on average. It might be because customers have more options and would like to check in both.
